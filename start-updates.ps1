@@ -190,6 +190,31 @@ if (Test-Path $TaskBkDir) {
     }
 }
 
+# Flipping a protected task's XML can drop it from the scheduler's own list -
+# the file is still on disk but Get-ScheduledTask no longer returns it. Put
+# those back so the machine is whole again.
+$reRegistered = 0
+foreach ($dir in $TaskFileDirs) {
+    if (-not (Test-Path $dir)) { continue }
+    $folderPath = '\Microsoft\Windows\' + (Split-Path $dir -Leaf) + '\'
+
+    Get-ChildItem -LiteralPath $dir -File -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+        $leaf = $_.Name
+        $known = Get-ScheduledTask -TaskPath $folderPath -TaskName $leaf -ErrorAction SilentlyContinue
+        if (-not $known) {
+            $full = ($folderPath + $leaf).TrimStart('\')
+            & schtasks.exe /Create /XML $_.FullName /TN $full /F 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                Good "task re-registered: $leaf"
+                $script:reRegistered++
+            } else {
+                Warn "could not re-register task: $leaf"
+            }
+        }
+    }
+}
+if ($reRegistered -eq 0) { Say '  no orphaned task files found' }
+
 # ----------------------------------------------------------- 5. normal flyout
 Step '5/6  Put the power menu back to normal'
 

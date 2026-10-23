@@ -279,6 +279,23 @@ try {
     Bad ("flyout keys failed: " + $_.Exception.Message)
 }
 
+# USO rewrites that value whenever it is awake. Confirm it stuck and re-assert
+# once. This is exactly why the services get stopped in step 1, before here -
+# if you set the flyout while UsoSvc is running it silently goes back to 0xA.
+Start-Sleep -Seconds 3
+$flyAfter = (Get-ItemProperty $OrchKey -Name 'ShutdownFlyoutOptions' -ErrorAction SilentlyContinue).ShutdownFlyoutOptions
+if ($null -eq $flyAfter) {
+    Warn 'could not read ShutdownFlyoutOptions back'
+} elseif ($flyAfter -ne 0) {
+    Warn ("Update Orchestrator rewrote ShutdownFlyoutOptions to $flyAfter - re-asserting 0")
+    try {
+        Set-ItemProperty -Path $OrchKey -Name 'ShutdownFlyoutOptions' -Value 0 -Type DWord -Force -ErrorAction Stop
+        Good 'ShutdownFlyoutOptions re-asserted to 0'
+    } catch { Bad 'could not re-assert ShutdownFlyoutOptions' }
+} else {
+    Good 'ShutdownFlyoutOptions held at 0'
+}
+
 try {
     Get-Process StartMenuExperienceHost -ErrorAction SilentlyContinue | ForEach-Object {
         Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
