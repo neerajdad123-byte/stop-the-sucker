@@ -1,0 +1,5 @@
+# local logs and test scratch
+*.log
+*.tmp
+sts-*.json
+sts-*.xml
